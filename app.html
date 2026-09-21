@@ -57,7 +57,7 @@
 <script src="engine.js?v=1"></script>
 <script>
 var KEY='worldclock-cities-v1';
-var S={ cities:['jerusalem','new-york','london','tokyo'] };
+var S={ cities:['jerusalem','new-york','london'] };
 function $(id){return document.getElementById(id);}
 function cityById(id){ return CITIES.find(function(c){return c.id===id;}); }
 function save(){ try{localStorage.setItem(KEY,JSON.stringify(S.cities));}catch(_){}}
