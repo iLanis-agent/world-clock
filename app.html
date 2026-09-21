@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>World Clock</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  body { font-family:-apple-system,'Segoe UI',Roboto,sans-serif; background:#0d1117; color:#e6edf3; min-height:100vh; padding:18px 12px 50px; }
+  .wrap { max-width:600px; margin:0 auto; }
+  header { text-align:center; margin-bottom:12px; }
+  header h1 { font-size:26px; }
+  header .tag { color:#7d8590; font-size:12px; }
+  a { color:#58a6ff; text-decoration:none; }
+  .clocks { display:flex; flex-direction:column; gap:8px; margin-bottom:16px; }
+  .clock { display:grid; grid-template-columns:1fr auto auto auto; gap:10px; align-items:center; background:#161b22; border:1px solid #2d333b; border-radius:12px; padding:12px 16px; }
+  .clock .city { font-weight:700; font-size:15px; }
+  .clock .rel { font-size:11px; color:#7d8590; }
+  .clock .time { font-size:22px; font-weight:800; font-variant-numeric:tabular-nums; }
+  .clock .off { font-size:11.5px; color:#8b949e; min-width:56px; text-align:right; }
+  .clock .work { width:10px; height:10px; border-radius:50%; background:#3d444d; }
+  .clock .work.on { background:#3fb950; box-shadow:0 0 8px rgba(63,185,80,.7); }
+  .clock .rm { background:none; border:none; color:#7d8590; font-size:16px; cursor:pointer; padding:0 2px; }
+  .addRow { display:flex; gap:8px; margin-bottom:18px; }
+  select { flex:1; background:#161b22; color:#e6edf3; border:1px solid #2d333b; border-radius:10px; padding:9px 12px; font-size:13.5px; }
+  .btn { background:#58a6ff; color:#0d1117; border:none; border-radius:999px; padding:9px 18px; font-size:13px; font-weight:800; cursor:pointer; }
+  .sect { font-size:11px; font-weight:700; color:#7d8590; text-transform:uppercase; letter-spacing:1px; text-align:center; margin:16px 0 8px; }
+  #overlapBox { background:#161b22; border:1px solid #2d333b; border-radius:12px; padding:14px 16px; text-align:center; font-size:14.5px; line-height:1.6; }
+  #overlapBox b { color:#3fb950; }
+  #overlapBox .none { color:#f0883e; }
+  .sliderWrap { margin-top:14px; }
+  .sliderWrap label { font-size:12px; color:#7d8590; display:block; text-align:center; margin-bottom:6px; }
+  input[type=range] { width:100%; accent-color:#58a6ff; }
+  #whenTimes { margin-top:10px; display:flex; flex-direction:column; gap:4px; }
+  .whenRow { display:flex; justify-content:space-between; background:#0d1117; border:1px solid #2d333b; border-radius:8px; padding:7px 12px; font-size:13px; }
+  .whenRow.bad { opacity:.45; }
+  .note { text-align:center; color:#484f58; font-size:11.5px; margin-top:16px; line-height:1.6; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header><h1>&#127760; World Clock</h1><div class="tag">live clocks + a meeting-time finder. green dot = within 9-18 there.</div></header>
+  <div class="clocks" id="clocks"></div>
+  <div class="addRow">
+    <select id="cityPick"></select>
+    <button class="btn" id="addBtn">Add</button>
+  </div>
+  <div class="sect">Meeting finder</div>
+  <div id="overlapBox"></div>
+  <div class="sliderWrap">
+    <label>slide an hour (UTC) to see local times everywhere</label>
+    <input type="range" id="hour" min="0" max="47" value="24">
+    <div id="whenTimes"></div>
+  </div>
+  <div class="note">Cities save in your browser.<br><a href="index.html">about</a></div>
+</div>
+<script src="engine.js?v=1"></script>
+<script>
+var KEY='worldclock-cities-v1';
+var S={ cities:['jerusalem','new-york','london','tokyo'] };
+function $(id){return document.getElementById(id);}
+function cityById(id){ return CITIES.find(function(c){return c.id===id;}); }
+function save(){ try{localStorage.setItem(KEY,JSON.stringify(S.cities));}catch(_){}}
+function load(){ try{var v=JSON.parse(localStorage.getItem(KEY)); if(v&&v.length) S.cities=v;}catch(_){}}
+function pad(n){ return ('0'+n).slice(-2); }
+function renderClocks(){
+  var now=Date.now();
+  var s='';
+  S.cities.forEach(function(id){
+    var c=cityById(id); if(!c) return;
+    var lp=localParts(now,c.tz);
+    var off=offsetHours(now,c.tz);
+    var work=inWork(now,c.tz);
+    s+='<div class="clock" data-id="'+id+'">'+
+      '<div><div class="city">'+c.label+'</div><div class="rel">'+lp.weekday+' '+lp.month+'/'+lp.day+'</div></div>'+
+      '<div class="off">UTC'+(off>=0?'+':'')+off+'</div>'+
+      '<div class="time">'+pad(lp.hour)+':'+pad(lp.minute)+'</div>'+
+      '<div style="display:flex;align-items:center;gap:6px"><div class="work'+(work?' on':'')+'"></div><button class="rm" data-rm="'+id+'">&#215;</button></div>'+
+      '</div>';
+  });
+  $('clocks').innerHTML=s;
+  document.querySelectorAll('[data-rm]').forEach(function(b){
+    b.onclick=function(){ S.cities=S.cities.filter(function(x){return x!==b.dataset.rm;}); save(); renderAll(); };
+  });
+}
+function renderPicker(){
+  var s='';
+  CITIES.forEach(function(c){
+    if(S.cities.indexOf(c.id)===-1) s+='<option value="'+c.id+'">'+c.label+'</option>';
+  });
+  $('cityPick').innerHTML=s;
+  $('addBtn').disabled=!s;
+}
+function todayStartUtc(){ var d=new Date(); return Date.UTC(d.getUTCFullYear(),d.getUTCMonth(),d.getUTCDate()); }
+function fmtSlot(ms,tz){ var lp=localParts(ms,tz); return lp.weekday+' '+pad(lp.hour)+':'+pad(lp.minute); }
+function renderOverlap(){
+  var tzs=S.cities.map(function(id){return cityById(id).tz;});
+  var best=bestOverlap(todayStartUtc(),tzs);
+  if(!best){
+    $('overlapBox').innerHTML='<span class="none">No shared 9-18 window today across these cities.</span>';
+  } else {
+    var anchor=S.cities[0], ac=cityById(anchor);
+    var a=fmtSlot(best.start,ac.tz), b=fmtSlot(best.end,ac.tz);
+    $('overlapBox').innerHTML='Best shared window: <b>'+a+' - '+b+' '+ac.label+' time</b><br><span style="font-size:12px;color:#7d8590">'+Math.round((best.end-best.start)/3600000*2)/2+'h when everyone is within 9-18</span>';
+  }
+}
+function renderWhen(){
+  var half=+$('hour').value;
+  var ms=todayStartUtc()+half*1800000;
+  var s='';
+  S.cities.forEach(function(id){
+    var c=cityById(id);
+    var lp=localParts(ms,c.tz);
+    var ok=inWork(ms,c.tz);
+    s+='<div class="whenRow'+(ok?'':' bad')+'"><span>'+c.label+'</span><b>'+lp.weekday+' '+pad(lp.hour)+':'+pad(lp.minute)+'</b></div>';
+  });
+  $('whenTimes').innerHTML=s;
+}
+function renderAll(){ renderClocks(); renderPicker(); renderOverlap(); renderWhen(); }
+$('addBtn').onclick=function(){ var v=$('cityPick').value; if(!v)return; S.cities.push(v); save(); renderAll(); };
+$('hour').oninput=renderWhen;
+load(); renderAll();
+setInterval(renderClocks,1000);
+</script>
+</body>
+</html>
